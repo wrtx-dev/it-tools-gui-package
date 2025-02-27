@@ -1,0 +1,112 @@
+name: Build macOS App
+
+on:
+  push:
+    branches:
+        - '*'
+    tags:
+        - '*'
+
+
+jobs:
+  release:
+    name: Build macOS App
+    runs-on: macos-latest # We can cross compile but need to be on macOS to notarise
+    strategy:
+      matrix:
+        platform:
+          - darwin/amd64
+          - darwin/arm64
+          - darwin/universal
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Set platform tag
+        id: get_platform
+        shell: bash
+        run: |
+          tag=$(echo ${{ matrix.platform }} | sed -e 's/\//_/g' -e 's/darwin/mac/g' -e 's/amd64/intel/g')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Set version tag
+        id: set_app_version
+        shell: bash
+        run: |
+          if [ "${{ github.ref }}" != "" ]; then
+            version=$(echo ${{ github.ref }} | sed 's#.*/.*/\(.*$\)#\1#')
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
+            version=$(echo $(date +%Y-%m-%d-%H-%M) | sed -e 's/v//g')
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Install wails
+        shell: bash
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Build frontend assets
+        shell: bash
+        run: |
+          npm install -g yarn
+          cd ui
+          yarn
+
+      - name: Build wails app for macOS
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.platform }}
+
+
+      - name: Checkout create-image
+        uses: actions/checkout@v2
+        with:
+          repository: create-dmg/create-dmg
+          path: ./build/create-dmg
+          ref: master
+
+      - name: Build macOS DMG
+        shell: bash
+        working-directory: ./build
+        run: |
+          ./create-dmg/create-dmg \
+            --no-internet-enable \
+            --volname "SSPDU" \
+            --volicon "bin/it-tools-gui.app/Contents/Resources/iconfile.icns" \
+            --text-size 12 \
+            --window-pos 400 400 \
+            --window-size 660 450 \
+            --icon-size 80 \
+            --icon "it-tools-gui.app" 180 180 \
+            --hide-extension "it-tools-gui.app" \
+            --app-drop-link 480 180 \
+            "bin/it-tools-gui-${{ steps.get_platform.outputs.tag }}.dmg" \
+            "bin"
+
+      - name: Rename dmg
+        working-directory: ./build/bin
+        run: mv "it-tools-gui-${{ steps.get_platform.outputs.tag }}.dmg" "it-tools-gui_${{ steps.set_app_version.outputs.version }}_${{ steps.get_platform.outputs.tag }}.dmg"
+
+      - name: "upload"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wails Build ${{runner.os}} ${{ steps.get_platform.outputs.tag }}
+          path: |
+            ./build/bin/*
+
+      - name: Upload release asset (DMG Package)
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: ${{ steps.set_app_version.outputs.version }}
+          files: ./build/bin/it-tools-gui_${{ steps.set_app_version.outputs.version }}_${{ steps.get_platform.outputs.tag }}.dmg

@@ -1,0 +1,111 @@
+name: Build Windows App
+
+on:
+    push:
+        branches:
+          - '*'
+        tags:
+          - '*'  
+
+jobs:
+  release:
+    name: Release Windows App
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform:
+          - windows/amd64
+          - windows/arm64
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Get platform tag
+        id: get_platform
+        shell: bash
+        run: |
+          tag=$(echo ${{ matrix.platform }} | sed -e 's/\//_/g' -e 's/amd64/x64/g')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Get platform name
+        id: get_platform_name
+        shell: bash
+        run: |
+          pname=$(echo "${{ matrix.platform }}" | sed 's/windows\///g')
+          echo "pname=$pname" >> "$GITHUB_OUTPUT"
+
+      - name: Set version tag
+        id: set_app_version
+        shell: bash
+        run: |
+          if [ "${{ github.ref }}" != "" ]; then
+            version=$(echo ${{ github.ref }} | sed 's#.*/.*/\(.*$\)#\1#')
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
+            version=$(echo $(date +%Y-%m-%d-%H-%M) | sed -e 's/v//g')
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+
+      - name: Install wails
+        shell: bash
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Build frontend assets
+        shell: bash
+        run: |
+          npm install -g yarn
+          cd ui
+          yarn
+
+      - name: Build Windows portable app
+        shell: bash
+        run: |
+          wails build -clean -platform ${{ matrix.platform }} -webview2 embed
+
+      - name: Compress portable binary
+        working-directory: ./build/bin
+        run: Compress-Archive "it-tools-gui.exe" "it-tools-gui_Portable_${{ steps.set_app_version.outputs.version }}_${{ steps.get_platform.outputs.tag }}.zip"
+
+      - name: Upload release asset (Portable)
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.set_app_version.outputs.version }}
+          files: ./build/bin/it-tools-gui_Portable_${{ steps.set_app_version.outputs.version }}_${{ steps.get_platform.outputs.tag }}.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Windows NSIS installer
+        shell: bash
+        run: |
+          CGO_ENABLED=1 wails build -clean -platform ${{ matrix.platform }} \
+          -nsis -webview2 embed \
+          -ldflags "-X main.version=v${{ steps.set_app_version.outputs.version }}"
+
+
+      - name: Rename installer
+        working-directory: ./build/bin
+        run: Rename-Item -Path "it-tools-gui-${{ steps.get_platform_name.outputs.pname }}-installer.exe" -NewName "it-tools-gui_Setup_${{ steps.set_app_version.outputs.version }}_${{ steps.get_platform.outputs.tag }}.exe"
+
+      - name: "upload"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wails Build ${{runner.os}} ${{ steps.get_platform.outputs.tag }}
+          path: |
+            ./build/bin/*.exe
+
+      - name: Upload release asset (Installer)
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: ${{ steps.set_app_version.outputs.version }}
+          files: ./build/bin/it-tools-gui_Setup_${{ steps.set_app_version.outputs.version }}_${{ steps.get_platform.outputs.tag }}.exe
