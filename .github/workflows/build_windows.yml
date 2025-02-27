@@ -64,9 +64,9 @@ jobs:
       - name: Build frontend assets
         shell: bash
         run: |
-          npm install -g yarn
+          npm install -g pnpm
           cd it-tools-src
-          yarn
+          pnpm i
 
       - name: Build Windows portable app
         shell: bash
