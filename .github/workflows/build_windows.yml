@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v3
+        with:
+            submodules: recursive
 
       - name: Get platform tag
         id: get_platform
@@ -66,7 +68,7 @@ jobs:
         run: |
           npm install -g pnpm
           cd it-tools-src
-          pnpm i
+          pnpm install
 
       - name: Build Windows portable app
         shell: bash

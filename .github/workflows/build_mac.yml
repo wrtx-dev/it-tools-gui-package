@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v3
+        with:
+            submodules: recursive
 
       - name: Set platform tag
         id: get_platform
