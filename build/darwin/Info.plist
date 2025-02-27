@@ -70,4 +70,5 @@
           {{end}}
         </array>
         {{end}}
+    </dict>
 </plist>
