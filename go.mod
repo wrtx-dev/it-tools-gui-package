@@ -1,4 +1,4 @@
-module itools-gui
+module it-tools-gui
 
 go 1.22.0
 
