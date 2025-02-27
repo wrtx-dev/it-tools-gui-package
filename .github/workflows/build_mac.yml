@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           npm install -g yarn
-          cd ui
+          cd it-tools-src
           yarn
 
       - name: Build wails app for macOS
