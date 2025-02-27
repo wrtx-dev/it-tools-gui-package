@@ -60,7 +60,8 @@ jobs:
         run: |
           npm install -g pnpm
           cd it-tools-src
-          pnpm i
+          ls -lha
+          pnpm install
 
       - name: Build wails app for macOS
         shell: bash
