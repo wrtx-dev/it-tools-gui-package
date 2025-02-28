@@ -6,9 +6,10 @@
           <key>NSAllowsArbitraryLoads</key>
           <true/>
         </dict>
-        <key>AVCaptureDeviceTypeContinuityCamera</key>
         <string>This app requires camera access.</string>
         <key>NSCameraUseContinuityCameraDeviceType</key>
+        <string>AVCaptureDeviceTypeContinuityCamera</string>
+        <key>NSMicrophoneUsageDescription</key>
         <string>This app requires camera access.</string>
         <key>NSMicrophoneUsageDescription</key>
         <string>This app requires camera access.</string>
